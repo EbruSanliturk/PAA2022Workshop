@@ -1,0 +1,188 @@
+---
+title: "WorkshopGT"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Obtaining daily data
+
+Selected parameters
+
+Keyword: asylum
+Location worldwide (default)
+Time range: between 2022-01-01 and 2022-03-29. 
+
+```{r}
+gtrends(keyword = "asylum", time = "2022-01-01 2022-03-29",
+        gprop = "web", hl = "en", low_search_volume = TRUE)
+```
+
+A look at related queries suggests asylum may be too broad to be used as a migration proxy.
+
+To save the results for interest over time, following can be used. 
+
+```{r}
+gtrends(keyword = "asylum", time = "2022-01-01 2022-03-29",
+        gprop = "web", hl = "en", low_search_volume = TRUE, onlyInterest = TRUE)
+
+#or
+
+gtrends(keyword = "asylum", time = "2022-01-01 2022-03-29",
+        gprop = "web", hl = "en", low_search_volume = TRUE)$interest_over_time
+```
+
+We can define up tp 5 different keywords/locations. If we have more than 5 keywords or places to compare, a loop is necessary.
+
+```{r}
+data("countries")
+countries
+EUcountries <- c("AT", "BE", "CH", "CZ", "DE", "DK", "FR", "FI", "GR", "HU",
+                 "IS", "IE", "IT", "LV", "LT", "LU", "NL", "NO", "PL", "PT",
+                 "SK", "SI", "ES", "SE", "EE", "LI", "MT", "BG", "HR", "CY",
+                 "RO")
+
+example <- data.table()
+
+for (i in 1:length(EUcountries)) {
+    example2 = rbind(example, (gtrends(keyword = "asylum", geo = EUcountries[i],
+                              time = "2022-01-01 2022-03-29", gprop = "web",
+                              hl = "en", low_search_volume = TRUE))$interest_over_time)
+}
+
+```
+
+## Example Case
+
+Based on previous examples in literature, Google Trends may help monitoring the Ukrainian refugees. The difference in language and alphabet with the neighboring countries may help with differentiating the information seekers with intention to move.
+
+asylum seeker: (шукач) притулку
+refugee: біженець
+border: кордону / granica (Ukrainian / Polish)
+Attention on border cities as destination
+
+```{r}
+gtrends(keyword = "кордону", geo = c("PL", "UA"), time = "2022-01-01 2022-03-29",
+        gprop = "web", hl = "uk", low_search_volume = TRUE)$related_queries
+
+gtrends(keyword = "кордону", geo = c("PL", "UA"), time = "2022-01-01 2022-03-29",
+        gprop = "web", hl = "en", low_search_volume = TRUE)$interest_by_city
+
+gtrends(keyword = "біженець", geo = c("PL", "UA"), time = "2022-01-01 2022-03-29",
+        gprop = "web", hl = "uk", low_search_volume = TRUE)$interest_by_city
+```
+
+## Time adjustment
+
+```{r}
+library(zoo)
+timesd <- c("2022-01-01 2022-03-31", "2021-10-01 2021-12-31", "2021-07-01 2021-09-30") 
+
+example = data.table()
+for (i in 1:length(timesd)) {
+  example = rbind(example, (gtrends(keyword = "refugee", geo = "US",
+                                      time = timesd[i], gprop = "web", hl = "en",
+                                      low_search_volume = TRUE))$interest_over_time)
+  
+}
+example <- example[order(example$date)]
+
+examplew <- gtrends(keyword = "refugee", geo = "US",
+                     time = "2021-07-01 2022-03-31", gprop = "web", hl = "en",
+                     low_search_volume = TRUE)$interest_over_time
+
+# compare the daily and weekly GTI
+
+ggplot(example, aes(x=as.character(date), y=hits, group=time, color=time)) +
+  geom_path() + guides(color=guide_legend(ncol=1)) +
+  theme(axis.text.x = element_blank(),axis.title.x = element_blank(),
+        panel.grid  = element_blank(),plot.background = element_rect(fill = "gray")) +
+  ylab("GTI") + 
+  geom_path(data = examplew, aes(x=as.character(date), y=hits, group = time), color = "black")
+
+example <- left_join(example, examplew, by = c("date" = "date",
+                                      "keyword" = "keyword",
+                                      "geo" = "geo",
+                                      "gprop" = "gprop",
+                                      "category" = "category")) 
+
+example <- rename(example, dailyhits = hits.x, weeklyhits = hits.y)
+example$scalefactor = example$weeklyhits / example$dailyhits
+
+example <- example[1:270,] # to remove the days for which there would be no adjustment factor
+example$scalefactor <- na.locf(example$scalefactor, fromLast = TRUE)
+
+example$estimatedhits <- example$dailyhits * example$scalefactor
+rescale <- function(x){(x-min(x))/(max(x)-min(x)) * 100}
+example <- example %>% mutate(adjustedhits = rescale(estimatedhits))
+
+
+```
+
+## Visualization
+
+Visualizing the change in the interest for "refugee" across US states.
+
+# Download the data
+
+```{r}
+data("countries")
+USstates <- countries[3796:3846,2]
+outarea <- countries[3847:3852,2]
+
+mapdata <- data.table()
+for (i in 1:length(states)) {
+  mapdata = rbind(mapdata, (gtrends(keyword = "refugee", geo = states[i],
+                                      time = "2022-03-22 2022-03-29", gprop = "web",
+                                      hl = "en", low_search_volume = TRUE))$interest_over_time)
+  
+}
+
+mapdata$hits[is.na(mapdata$hits)==TRUE] <- 0
+```
+
+# Map elements
+
+```{r}
+library(tmap)            
+library(tmaptools) 
+library(tigris) #Census Geography Poloygons
+library(sf)
+
+us_geo <- tigris::states(class = "sf")
+us_geo <- shift_geometry(us_geo)
+
+outarea <- str_extract(outarea, "(?<=-).*")
+us_geo <- us_geo %>% filter(!(STUSPS %in% outarea))
+```
+
+# Merge datasets
+
+```{r}
+library(stringr)
+mapdata$state <-  str_extract(mapdata$geo, "(?<=-).*")
+us_geo$STUSPS[!(us_geo$STUSPS %in% mapdata$state)]
+
+mapdata <- merge(us_geo, mapdata,
+                 by.x = "STUSPS", by.y= "state",
+                 duplicateGeoms = TRUE, all.x = TRUE)
+
+mapdata$date <- as.character(mapdata$date)
+mapdata <- mapdata[order(mapdata$STUSPS, mapdata$date),]
+```
+
+# Create the map
+
+```{r}
+tm_shape(mapdata, bbox = NULL) +
+  tm_fill(col = "hits", style = "cont",
+          title = "", palette = "Reds") +
+  tm_facets("date", showNA = FALSE) +
+  tm_borders(col = "black", alpha = 0.5) +
+  tm_style("gray") +
+  tm_text("STUSPS", size = 0.6)
+```
+
+
