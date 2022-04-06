@@ -9,7 +9,7 @@ library(tidyverse)
 library(data.table)
 library(curl)
 library(readr)
-#library(gtrendsR)
+library(gtrendsR)
 library(countrycode)
 library(devtools)
 ```
