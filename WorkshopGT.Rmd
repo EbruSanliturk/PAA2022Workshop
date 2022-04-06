@@ -11,7 +11,13 @@ library(curl)
 library(readr)
 library(gtrendsR)
 library(countrycode)
+
+# to use the developer version
 library(devtools)
+devtools::install_github("PMassicotte/gtrendsR")
+find.package("gtrendsR") # use the output for lib.loc
+library("gtrendsR", lib.loc="")
+
 ```
 
 ## Obtaining daily data
@@ -54,10 +60,25 @@ EUcountries <- c("AT", "BE", "CH", "CZ", "DE", "DK", "FR", "FI", "GR", "HU",
 example <- data.table()
 
 for (i in 1:length(EUcountries)) {
-    example2 = rbind(example, (gtrends(keyword = "asylum", geo = EUcountries[i],
+    example = rbind(example, (gtrends(keyword = "asylum", geo = EUcountries[i],
                               time = "2022-01-01 2022-03-29", gprop = "web",
                               hl = "en", low_search_volume = TRUE))$interest_over_time)
 }
+
+# dowloading data for multiple keywords and multiple locations
+
+countryset <- c("US", "UK", "CA", "NZ", "AU", "IE") # just the English-speaking countries better results in this example
+keywordset <- c("'asylum seeker'", "refugee + refuge", "migration", "immigrant", "migrant")
+
+
+for (j in 1:length(keywordset)) {
+for (i in 1:length(countryset)) {
+    newexample = rbind(newexample, (gtrends(keyword = keywordset[j], geo = countryset[i],
+                              time = "2022-01-01 2022-03-29", gprop = "web",
+                              hl = "en", low_search_volume = TRUE))$interest_over_time)
+}
+}
+
 
 ```
 
