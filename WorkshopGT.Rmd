@@ -182,7 +182,7 @@ tm_shape(mapdata, bbox = NULL) +
   tm_facets("date", showNA = FALSE) +
   tm_borders(col = "black", alpha = 0.5) +
   tm_style("gray") +
-  tm_text("STUSPS", size = 0.6)
+  tm_text("STUSPS", size = 0.3)
 ```
 
 
