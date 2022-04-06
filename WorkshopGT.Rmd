@@ -5,6 +5,13 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(data.table)
+library(curl)
+library(readr)
+#library(gtrendsR)
+library(countrycode)
+library(devtools)
 ```
 
 ## Obtaining daily data
